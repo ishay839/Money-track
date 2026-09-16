@@ -257,6 +257,28 @@ Rare cases:
 | `npm run service:open` | Open the app in your browser |
 | `npm run service:uninstall` | Remove auto-start and hosts entry. `data/` is untouched. |
 
+## Categorization without an AI key
+
+Categorization runs in three stages, and only the last one needs an AI key:
+
+1. **Your rules** — Settings > Rules. Explicit instructions; they always win.
+2. **Learned merchants** — press "make it a rule" on a transaction and the same
+   merchant is categorized that way from then on, including retroactively.
+3. **AI** — only for what the first two did not catch.
+
+A new install ships with ~85 starter rules for well-known Israeli merchants
+(Shufersal, Rami Levy, Paz, Sonol, Aroma, Cellcom, Netflix, insurers, HMOs and
+so on), so stages 1 and 2 work on their own. On a real Israeli card statement
+that covers roughly a fifth of transactions before you configure anything at
+all, and it grows as you categorize: every "make it a rule" adds to it.
+
+Starter rules are ordinary rules — edit or delete them on Settings > Rules like
+any other. They carry a low priority, so a rule you write always beats one that
+shipped with the app.
+
+An AI provider is worth adding if you want the long tail handled for you;
+without one, anything unmatched simply waits for you in **Needs review**.
+
 ## Updating
 
 ```bash
