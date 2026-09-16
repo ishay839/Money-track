@@ -1,0 +1,354 @@
+"use client";
+
+import { useLocale, useTranslations } from "next-intl";
+import {
+  ShoppingBasket,
+  UtensilsCrossed,
+  TramFront,
+  ShoppingBag,
+  Ticket,
+  HeartPulse,
+  GraduationCap,
+  Receipt,
+  RefreshCw,
+  Plane,
+  Banknote,
+  ArrowLeftRight,
+  Shield,
+  Home,
+  Sparkles,
+  CircleDot,
+  HelpCircle,
+  Coffee,
+  PawPrint,
+  Gift,
+  Baby,
+  Briefcase,
+  TrendingUp,
+  RotateCcw,
+  type LucideIcon,
+} from "lucide-react";
+import { formatCurrency } from "@/lib/formatters";
+import { translateCategoryName } from "@/lib/i18n-data";
+import type { CategoryWithData, BudgetStatus } from "@/lib/types";
+import type { Locale } from "@/i18n/routing";
+
+const ICON_MAP: Record<string, LucideIcon> = {
+  "shopping-basket": ShoppingBasket,
+  "utensils-crossed": UtensilsCrossed,
+  "tram-front": TramFront,
+  "shopping-bag": ShoppingBag,
+  ticket: Ticket,
+  "heart-pulse": HeartPulse,
+  "graduation-cap": GraduationCap,
+  receipt: Receipt,
+  "refresh-cw": RefreshCw,
+  plane: Plane,
+  banknote: Banknote,
+  "arrow-left-right": ArrowLeftRight,
+  shield: Shield,
+  home: Home,
+  sparkles: Sparkles,
+  "circle-dot": CircleDot,
+  coffee: Coffee,
+  "paw-print": PawPrint,
+  gift: Gift,
+  baby: Baby,
+  briefcase: Briefcase,
+  "trending-up": TrendingUp,
+  "rotate-ccw": RotateCcw,
+};
+
+interface CategoryCardProps {
+  data: CategoryWithData;
+  onClick?: () => void;
+}
+
+export function CategoryCard({ data, onClick }: CategoryCardProps) {
+  const t = useTranslations("dashboard");
+  const tCat = useTranslations("categoriesSeeded");
+  const locale = useLocale() as Locale;
+  const Icon = ICON_MAP[data.categoryIcon ?? "circle-dot"] ?? CircleDot;
+  const percent = Math.min(999, Math.round(data.percentSpent));
+  const vsLast = data.vsLastMonth;
+  const isTracking = data.budgetMode === "tracking";
+  const categoryName = translateCategoryName(data.categoryName, tCat);
+  const parentName = data.parentName ? translateCategoryName(data.parentName, tCat) : null;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="surface group flex h-full w-full cursor-pointer flex-col p-5 text-start transition-colors duration-200 ease-out hover:border-primary/40 hover:bg-accent/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex min-w-0 flex-1 items-start gap-3">
+          <div
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+            style={{ background: tint(data.categoryColor, 0.18) }}
+          >
+            <Icon className="h-5 w-5" style={{ color: shade(data.categoryColor) }} />
+          </div>
+          <div className="min-w-0 flex-1">
+            {parentName && (
+              <div
+                className="text-xs font-bold tracking-wide"
+                style={{ color: shade(data.categoryColor) }}
+              >
+                {parentName}
+              </div>
+            )}
+            <div className="flex items-center gap-1.5">
+              <span className="text-base font-semibold leading-tight">{categoryName}</span>
+              {data.isParent && data.childCount != null && (
+                <span
+                  className="rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums"
+                  style={{
+                    background: tint(data.categoryColor, 0.22),
+                    color: shade(data.categoryColor),
+                  }}
+                  title={t("subcategoriesTooltip", { count: data.childCount })}
+                >
+                  {data.childCount}
+                </span>
+              )}
+              {data.needsReviewCount > 0 && (
+                <span
+                  className="inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums"
+                  style={{
+                    backgroundColor:
+                      "color-mix(in oklch, var(--status-heads-up) 18%, transparent)",
+                    color: "var(--status-heads-up)",
+                  }}
+                  title={t("needsReviewTooltip", { count: data.needsReviewCount })}
+                >
+                  <HelpCircle className="h-3 w-3" />
+                  {data.needsReviewCount}
+                </span>
+              )}
+              {data.isParent && data.budgetSource === "own" && !isTracking && (
+                <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground">
+                  {t("ownBudgetTag")}
+                </span>
+              )}
+              {data.isParent && data.budgetSource === "rollup" && !isTracking && (
+                <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground">
+                  {t("rolledUpTag")}
+                </span>
+              )}
+            </div>
+            <div className="mt-1 truncate text-sm text-muted-foreground">
+              {data.transactionCount}{" "}
+              {data.transactionCount === 1
+                ? t("transactionsOne")
+                : t("transactionsOther")}
+              {data.topMerchant
+                ? ` · ${t("mostlyMerchant", { merchant: data.topMerchant })}`
+                : ""}
+            </div>
+          </div>
+        </div>
+        {!isTracking && (
+          <ProgressDonut
+            percent={percent}
+            color={data.categoryColor}
+            status={data.status}
+          />
+        )}
+      </div>
+
+      <div className="mt-4 flex-1">
+        <div className="flex items-baseline gap-1.5">
+          <span className="metric-lg">
+            {formatCurrency(data.spent, "ILS", locale)}
+          </span>
+          {!isTracking && data.budget > 0 && (
+            <span className="text-base tabular-nums text-muted-foreground">
+              / {formatCurrency(data.budget, "ILS", locale)}
+            </span>
+          )}
+        </div>
+        <div className="mt-1.5 flex items-center gap-2 text-sm text-muted-foreground">
+          {isTracking ? (
+            <VsTypical vsTypical={data.vsTypical} color={data.categoryColor} />
+          ) : (
+            <>
+              {data.budget === 0 && <span>{t("noBudgetSet")}</span>}
+              {vsLast != null && <VsLastMonth pct={vsLast} />}
+            </>
+          )}
+        </div>
+      </div>
+
+      {!isTracking && (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-sm">
+          <div className="text-muted-foreground tabular-nums">
+            {data.budget > 0 ? (
+              data.spent <= data.budget ? (
+                <>
+                  {t("spentLeft", {
+                    amount: formatCurrency(data.remaining, "ILS", locale),
+                  })}
+                  {data.perDayRemaining != null && (
+                    <>
+                      {" · "}
+                      {t("perDay", {
+                        amount: formatCurrency(data.perDayRemaining, "ILS", locale),
+                      })}
+                    </>
+                  )}
+                </>
+              ) : (
+                <>
+                  <span className="text-[var(--status-over)]">
+                    {t("overAmount", {
+                      amount: formatCurrency(data.spent - data.budget, "ILS", locale),
+                    })}
+                  </span>
+                  {t("overByEaseUp")}
+                </>
+              )
+            ) : (
+              <span>{t("setBudgetToTrack")}</span>
+            )}
+          </div>
+          <StatusPill status={data.status} />
+        </div>
+      )}
+    </button>
+  );
+}
+
+function VsTypical({
+  vsTypical,
+  color,
+}: {
+  vsTypical: { typical: number; percentDiff: number } | null;
+  color: string;
+}) {
+  const t = useTranslations("dashboard");
+  const locale = useLocale() as Locale;
+  if (!vsTypical || vsTypical.typical <= 0) {
+    return null;
+  }
+  const rounded = Math.round(vsTypical.percentDiff);
+  const arrow = Math.abs(rounded) < 5 ? "≈" : rounded > 0 ? "↑" : "↓";
+  const accent = shade(color);
+  return (
+    <span className="flex items-center gap-1 tabular-nums">
+      <span style={{ color: accent }}>{arrow}</span>
+      {Math.abs(rounded) >= 5 && <span>{Math.abs(rounded)}%</span>}
+      <span>{t("vsTypical", { amount: formatCurrency(vsTypical.typical, "ILS", locale) })}</span>
+    </span>
+  );
+}
+
+function ProgressDonut({
+  percent,
+  color,
+  status,
+}: {
+  percent: number;
+  color: string;
+  status: BudgetStatus;
+}) {
+  const size = 60;
+  const stroke = 6;
+  const radius = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const visualPercent = Math.min(100, percent);
+  const dash = (visualPercent / 100) * circumference;
+  const strokeColor =
+    status === "over" ? "var(--status-over)" : shade(color);
+  return (
+    <div className="relative shrink-0" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="-rotate-90">
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke={tint(color, 0.18)}
+          strokeWidth={stroke}
+        />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke={strokeColor}
+          strokeWidth={stroke}
+          strokeDasharray={`${dash} ${circumference}`}
+          strokeLinecap="round"
+        />
+      </svg>
+      <div className="absolute inset-0 flex items-center justify-center text-sm font-bold tabular-nums">
+        {percent}%
+      </div>
+    </div>
+  );
+}
+
+function StatusPill({ status }: { status: BudgetStatus }) {
+  const t = useTranslations("dashboard");
+  const meta: Record<BudgetStatus, { label: string; color: string }> = {
+    "plenty-left": { label: t("statusPlentyLeft"), color: "var(--status-plenty-left)" },
+    "on-track": { label: t("statusOnTrack"), color: "var(--status-on-track)" },
+    "heads-up": { label: t("statusHeadsUp"), color: "var(--status-heads-up)" },
+    over: { label: t("statusOver"), color: "var(--status-over)" },
+  };
+  const m = meta[status];
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold tabular-nums"
+      style={{
+        backgroundColor: `color-mix(in oklch, ${m.color} 18%, transparent)`,
+        color: m.color,
+      }}
+    >
+      <span
+        className="h-1.5 w-1.5 rounded-full"
+        style={{ backgroundColor: m.color }}
+      />
+      {m.label}
+    </span>
+  );
+}
+
+function VsLastMonth({ pct }: { pct: number }) {
+  const t = useTranslations("dashboard");
+  const rounded = Math.round(pct);
+  if (Math.abs(rounded) < 1) {
+    return <span className="text-muted-foreground">{t("vsLastMonthFlat")}</span>;
+  }
+  const up = rounded > 0;
+  return (
+    <span
+      className={
+        up ? "text-[var(--status-over)]" : "text-[var(--status-on-track)]"
+      }
+    >
+      {up
+        ? t("vsLastMonthUp", { pct: Math.abs(rounded) })
+        : t("vsLastMonthDown", { pct: Math.abs(rounded) })}
+    </span>
+  );
+}
+
+function tint(hex: string, opacity: number): string {
+  const { r, g, b } = parseHex(hex);
+  return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+}
+
+function shade(hex: string): string {
+  const { r, g, b } = parseHex(hex);
+  const factor = 0.78;
+  return `rgb(${Math.round(r * factor)}, ${Math.round(g * factor)}, ${Math.round(b * factor)})`;
+}
+
+function parseHex(hex: string): { r: number; g: number; b: number } {
+  const clean = hex.replace("#", "");
+  return {
+    r: parseInt(clean.slice(0, 2), 16),
+    g: parseInt(clean.slice(2, 4), 16),
+    b: parseInt(clean.slice(4, 6), 16),
+  };
+}
