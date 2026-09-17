@@ -24,7 +24,13 @@ function writeLauncherVbs() {
     repoRoot: REPO_ROOT,
     nodePath: whichNode(),
   });
-  fs.writeFileSync(LAUNCHER_VBS, content, { encoding: "utf-8" });
+  // UTF-16LE with a BOM, not UTF-8. cscript/wscript decode a .vbs without a
+  // UTF-16 BOM using the system ANSI codepage, so a UTF-8 file whose paths
+  // contain non-ASCII characters arrives mangled - on a Windows account named
+  // in Hebrew the repo path becomes unreadable and the launcher dies with
+  // "The system cannot find the path specified". UTF-16LE is the one encoding
+  // the script hosts detect reliably.
+  fs.writeFileSync(LAUNCHER_VBS, "﻿" + content, { encoding: "utf16le" });
 }
 
 function removeLauncherVbs() {
