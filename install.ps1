@@ -1,6 +1,6 @@
 ﻿# One-line installer for Windows.
 #
-#   irm https://raw.githubusercontent.com/Ishay839/money-track/main/install.ps1 | iex
+#   irm https://raw.githubusercontent.com/ishay839/money-track/main/install.ps1 | iex
 #
 # Installs what is missing (Node.js, Git) via winget, clones the repo, and runs
 # the normal `npm run setup`. Everything here is what the README tells you to do
@@ -8,7 +8,7 @@
 
 $ErrorActionPreference = 'Stop'
 
-$Repo    = 'https://github.com/Ishay839/money-track.git'
+$Repo    = 'https://github.com/ishay839/money-track.git'
 $Dir     = Join-Path $env:USERPROFILE 'money-track'
 $MinNode = 22
 

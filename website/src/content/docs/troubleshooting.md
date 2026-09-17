@@ -98,7 +98,7 @@ The next time the service starts, Spent creates a fresh empty database.
 
 ## Still stuck?
 
-Open an issue on [GitHub](https://github.com/Ishay839/money-track/issues) with:
+Open an issue on [GitHub](https://github.com/ishay839/money-track/issues) with:
 
 - Your operating system and version
 - What you were doing when it broke

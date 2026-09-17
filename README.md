@@ -208,7 +208,7 @@ You can change providers any time from **Settings → AI provider**. Existing ca
 **Windows, one line.** Open PowerShell and paste:
 
 ```powershell
-irm https://raw.githubusercontent.com/Ishay839/money-track/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/ishay839/money-track/main/install.ps1 | iex
 ```
 
 It installs Node.js and Git if they are missing, clones the repo to
@@ -217,7 +217,7 @@ It installs Node.js and Git if they are missing, clones the repo to
 **macOS / Linux, or by hand:**
 
 ```bash
-git clone https://github.com/Ishay839/money-track.git
+git clone https://github.com/ishay839/money-track.git
 cd money-track
 npm install
 npm run setup

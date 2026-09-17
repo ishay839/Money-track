@@ -140,7 +140,7 @@ export function BankStep({ onComplete }: BankStepProps) {
             <p className="text-xs italic text-muted-foreground">
               הבנק שלכם לא מופיע?{" "}
               <a
-                href="https://github.com/Ishay839/money-track/issues"
+                href="https://github.com/ishay839/money-track/issues"
                 target="_blank"
                 rel="noreferrer"
                 className="text-foreground underline decoration-primary underline-offset-2"
