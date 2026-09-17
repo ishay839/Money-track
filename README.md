@@ -16,7 +16,6 @@ Encrypted. AI-categorized. Yours.
 [![SQLite](https://img.shields.io/badge/SQLite-WAL-003B57?logo=sqlite&logoColor=white&style=flat-square)](https://sqlite.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](#license)
 [![Status: Beta](https://img.shields.io/badge/Status-Beta-blueviolet?style=flat-square)](#features)
-[![Docs](https://img.shields.io/badge/Docs-online-83A47A?style=flat-square)](https://shaya16.github.io/Spent/)
 
 </div>
 
@@ -206,11 +205,20 @@ You can change providers any time from **Settings → AI provider**. Existing ca
 
 ## Install
 
-> Prefer a screenshot-by-screenshot walkthrough? The [step-by-step install guides](https://shaya16.github.io/Spent/getting-started/) on the docs site cover macOS and Windows separately, with build-tool setup and tray-app gotchas spelled out.
+**Windows, one line.** Open PowerShell and paste:
+
+```powershell
+irm https://raw.githubusercontent.com/Ishay839/money-track/main/install.ps1 | iex
+```
+
+It installs Node.js and Git if they are missing, clones the repo to
+`%USERPROFILE%\money-track`, and runs the setup below.
+
+**macOS / Linux, or by hand:**
 
 ```bash
-git clone https://github.com/Shaya16/Spent.git
-cd spent
+git clone https://github.com/Ishay839/money-track.git
+cd money-track
 npm install
 npm run setup
 ```
@@ -412,7 +420,6 @@ spent/
 
 ## Troubleshooting
 
-> The [Troubleshooting docs](https://shaya16.github.io/Spent/troubleshooting/) cover Defender, Gatekeeper, Cloudflare bot challenges, and bank-specific quirks in more depth.
 
 - **Port 41234 in use** → `lsof -nP -iTCP:41234 -sTCP:LISTEN` (Unix) or `netstat -ano | findstr :41234` (Windows). Kill the offender and re-run install.
 - **Gatekeeper blocks `Spent.app`** → right-click → Open → Open. One-time.

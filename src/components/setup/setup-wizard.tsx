@@ -74,7 +74,7 @@ export function SetupWizard({ mode = "first-run" }: { mode?: SetupMode }) {
         <BrandMark tagline={navT("brandTagline")} />
         <DotStepper step={step} steps={steps} />
         <a
-          href="https://github.com/Shaya16/Spent"
+          href="https://github.com/Ishay839/money-track"
           target="_blank"
           rel="noreferrer"
           className="hidden text-xs text-muted-foreground hover:text-foreground md:inline"

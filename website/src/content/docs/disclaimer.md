@@ -48,11 +48,11 @@ You are responsible for the security of your own machine.
 
 ## Open source license
 
-Spent is licensed under the **MIT License**. You can use, modify, and redistribute it freely, subject to the license terms. See the [LICENSE](https://github.com/Shaya16/Spent/blob/main/LICENSE) file in the repository.
+Spent is licensed under the **MIT License**. You can use, modify, and redistribute it freely, subject to the license terms. See the [LICENSE](https://github.com/Ishay839/money-track/blob/main/LICENSE) file in the repository.
 
 ## Questions
 
-If anything on this page is unclear, please open an issue at [github.com/Shaya16/Spent/issues](https://github.com/Shaya16/Spent/issues) so we can clarify it for everyone.
+If anything on this page is unclear, please open an issue at [github.com/Ishay839/money-track/issues](https://github.com/Ishay839/money-track/issues) so we can clarify it for everyone.
 
 ---
 
