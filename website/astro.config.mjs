@@ -3,7 +3,7 @@ import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import mdx from '@astrojs/mdx';
 
-const REPO_URL = 'https://github.com/ishay839/money-track';
+const REPO_URL = 'https://github.com/ishay839/Money-track';
 
 export default defineConfig({
 	site: 'https://shaya16.github.io',
