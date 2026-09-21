@@ -3,7 +3,7 @@
 #   irm https://raw.githubusercontent.com/ishay839/Money-track/main/install.ps1 | iex
 #
 # Installs what is missing (Node.js, Git) via winget, clones the repo, and runs
-# the normal `npm run setup`. Everything here is what the README tells you to do
+# the normal npm setup. Everything here is what the README tells you to do
 # by hand; this just saves the typing.
 #
 # ASCII only, and saved WITHOUT a BOM, on purpose. `irm | iex` hands the script
@@ -13,6 +13,13 @@
 # non-ASCII text as mojibake. Keeping this file to plain ASCII sidesteps both.
 
 $ErrorActionPreference = 'Stop'
+
+# Windows ships with ExecutionPolicy=Restricted, which blocks npm.ps1 and makes
+# a bare `npm` fail with "running scripts is disabled on this system". This
+# only relaxes the policy for THIS process - nothing is changed permanently on
+# the machine - and npm is invoked through npm.cmd below, which is a batch file
+# and not subject to the policy at all.
+try { Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force } catch { }
 
 $Repo    = 'https://github.com/ishay839/Money-track.git'
 $Dir     = Join-Path $env:USERPROFILE 'money-track'
@@ -24,6 +31,14 @@ function Warn { param($m) Write-Host ('    ' + $m) -ForegroundColor Yellow }
 function Die  { param($m) Write-Host '' ; Write-Host ('Setup stopped: ' + $m) -ForegroundColor Red ; exit 1 }
 
 function Have { param($c) return [bool](Get-Command $c -ErrorAction SilentlyContinue) }
+
+# npm.cmd, not npm: the .ps1 shim is blocked under a Restricted policy.
+function Npm {
+    param([string[]]$Arguments)
+    $cmd = (Get-Command npm.cmd -ErrorAction SilentlyContinue)
+    if ($cmd) { & $cmd.Source @Arguments }
+    else { & npm @Arguments }
+}
 
 # winget writes new tools into the machine PATH, which this already-running
 # shell cannot see. Re-read it rather than telling the user to reopen.
@@ -102,12 +117,12 @@ else {
 
 # --- Dependencies + setup --------------------------------------------------
 Step 'Installing dependencies (a few minutes)'
-npm install --no-audit --no-fund
+Npm @('install','--no-audit','--no-fund')
 if ($LASTEXITCODE -ne 0) { Pop-Location ; Die 'Dependency install failed.' }
 
 Step 'Running setup'
 Say '    You will be asked for Administrator once - only to add the spent.local address.'
-npm run setup
+Npm @('run','setup')
 $code = $LASTEXITCODE
 Pop-Location
 
