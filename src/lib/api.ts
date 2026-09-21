@@ -705,6 +705,35 @@ export function deleteIntegration(provider: string) {
   });
 }
 
+export interface ConnectionAccount {
+  accountNumber: string;
+  transactionCount: number;
+  firstSeen: string;
+  lastSeen: string;
+}
+
+/** Accounts this connection has delivered, and which of them are imported. */
+export function getConnectionAccounts(provider: string) {
+  return fetchJSON<{ accounts: ConnectionAccount[]; filter: string[] | null }>(
+    `/api/integrations/accounts?provider=${encodeURIComponent(provider)}`
+  );
+}
+
+/** `accounts: null` clears the filter and imports every account again. */
+export function setConnectionAccounts(
+  provider: string,
+  accounts: string[] | null
+) {
+  return fetchJSON<{ success: boolean; filter: string[] | null }>(
+    "/api/integrations/accounts",
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ provider, accounts }),
+    }
+  );
+}
+
 export function getIntegrationCredentials(provider: string) {
   return fetchJSON<{
     credentials: Record<string, string> | null;

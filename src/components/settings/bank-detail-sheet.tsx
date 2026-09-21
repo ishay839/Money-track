@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   Sheet,
@@ -19,8 +19,10 @@ import { translateProviderName } from "@/lib/i18n-data";
 import { useTranslations } from "next-intl";
 import {
   deleteIntegration,
+  getConnectionAccounts,
   getIntegrationCredentials,
   saveBankCredentials,
+  setConnectionAccounts,
   testBankConnection,
   updateIntegrationSettings,
 } from "@/lib/api";
@@ -129,6 +131,12 @@ function SheetBody({
           />
         ) : null}
       </div>
+
+      {mode === "edit" && connected ? (
+        <div className="border-t border-border/40 p-6">
+          <AccountPicker provider={connected.provider} />
+        </div>
+      ) : null}
 
       {mode === "edit" && connected ? (
         <div className="border-t border-border/40 p-6">
@@ -368,6 +376,129 @@ function RecentSyncCard({
             : "טרם סונכרן"}
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Which accounts from this login get imported into this workspace.
+ *
+ * A single bank login often exposes more than one account - a personal and a
+ * business current account, or several cards. Someone keeping those apart in
+ * separate workspaces needs each workspace to take only its own, otherwise
+ * both sets of transactions land wherever they happen to sync.
+ *
+ * The list is whatever the connection has already delivered, so it costs no
+ * bank login to open. An account that has never produced a transaction is not
+ * listed until the first sync brings it in.
+ */
+function AccountPicker({ provider }: { provider: string }) {
+  const queryClient = useQueryClient();
+  const query = useQuery({
+    queryKey: ["connection-accounts", provider],
+    queryFn: () => getConnectionAccounts(provider),
+  });
+
+  const [selected, setSelected] = useState<Set<string> | null>(null);
+
+  // Seed the checkboxes once the server answers: no filter means everything.
+  useEffect(() => {
+    if (!query.data) return;
+    setSelected(
+      query.data.filter
+        ? new Set(query.data.filter)
+        : new Set(query.data.accounts.map((a) => a.accountNumber))
+    );
+  }, [query.data]);
+
+  const mutation = useMutation({
+    mutationFn: (accounts: string[] | null) =>
+      setConnectionAccounts(provider, accounts),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["connection-accounts", provider] });
+      toast.success("נשמר. הסנכרון הבא יביא רק את החשבונות שנבחרו.");
+    },
+    onError: (error) =>
+      toast.error(error instanceof Error ? error.message : "השמירה נכשלה"),
+  });
+
+  const accounts = query.data?.accounts ?? [];
+
+  // Nothing useful to choose between until more than one account has appeared.
+  if (query.isLoading || accounts.length < 2) return null;
+
+  const all = accounts.length;
+  const picked = selected?.size ?? 0;
+
+  const toggle = (accountNumber: string) => {
+    setSelected((current) => {
+      const next = new Set(current ?? []);
+      if (next.has(accountNumber)) next.delete(accountNumber);
+      else next.add(accountNumber);
+      return next;
+    });
+  };
+
+  return (
+    <div className="rounded-xl border border-border bg-muted/20 p-4">
+      <div className="text-sm font-medium">חשבונות לייבוא</div>
+      <p className="mt-0.5 text-xs text-muted-foreground">
+        החיבור הזה מחזיר {all} חשבונות. סמן רק את מה ששייך לסביבת העבודה הזו -
+        למשל חשבון פרטי כאן וחשבון עסקי בסביבה אחרת.
+      </p>
+
+      <ul className="mt-3 space-y-1.5">
+        {accounts.map((account) => (
+          <li key={account.accountNumber}>
+            <label className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm hover:bg-accent/50">
+              <input
+                type="checkbox"
+                className="h-4 w-4 accent-[var(--primary)]"
+                checked={selected?.has(account.accountNumber) ?? false}
+                onChange={() => toggle(account.accountNumber)}
+              />
+              <span className="min-w-0 flex-1 truncate font-medium tabular-nums">
+                {account.accountNumber}
+              </span>
+              <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+                {account.transactionCount} תנועות
+              </span>
+            </label>
+          </li>
+        ))}
+      </ul>
+
+      {picked === 0 ? (
+        <p className="mt-2 text-xs text-destructive">
+          צריך לבחור לפחות חשבון אחד.
+        </p>
+      ) : null}
+
+      <div className="mt-3 flex items-center justify-between gap-2">
+        <button
+          type="button"
+          onClick={() => mutation.mutate(null)}
+          disabled={mutation.isPending || !query.data?.filter}
+          className="text-xs font-semibold text-primary hover:underline disabled:opacity-40 disabled:no-underline"
+        >
+          לייבא את כולם
+        </button>
+        <Button
+          size="sm"
+          disabled={mutation.isPending || picked === 0}
+          onClick={() => mutation.mutate([...(selected ?? [])])}
+          className="gap-1.5"
+        >
+          {mutation.isPending ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : null}
+          שמירה
+        </Button>
+      </div>
+
+      <p className="mt-2 text-xs text-muted-foreground">
+        תנועות שכבר יובאו נשארות. השינוי חל מהסנכרון הבא.
+      </p>
     </div>
   );
 }

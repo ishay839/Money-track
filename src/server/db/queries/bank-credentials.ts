@@ -47,6 +47,51 @@ export function saveBankCredentials(
   }
 }
 
+/**
+ * Which accounts this connection should import, or null for all of them.
+ *
+ * One login can expose several accounts - a personal and a business current
+ * account, or several cards. Someone keeping those in separate workspaces
+ * needs each workspace to take only its own.
+ */
+export function getAccountFilter(
+  workspaceId: number,
+  provider: string
+): string[] | null {
+  const row = getDb()
+    .prepare(
+      "SELECT account_filter FROM bank_credentials WHERE workspace_id = ? AND provider = ?"
+    )
+    .get(workspaceId, provider) as { account_filter: string | null } | undefined;
+  if (!row?.account_filter) return null;
+  try {
+    const parsed = JSON.parse(row.account_filter) as unknown;
+    if (!Array.isArray(parsed)) return null;
+    const list = parsed
+      .filter((v): v is string => typeof v === "string")
+      .map((v) => v.trim())
+      .filter(Boolean);
+    // An empty list would silently import nothing; treat it as "no filter".
+    return list.length > 0 ? list : null;
+  } catch {
+    return null;
+  }
+}
+
+export function setAccountFilter(
+  workspaceId: number,
+  provider: string,
+  accounts: string[] | null
+): void {
+  const value =
+    accounts && accounts.length > 0 ? JSON.stringify(accounts) : null;
+  getDb()
+    .prepare(
+      "UPDATE bank_credentials SET account_filter = ?, updated_at = datetime('now') WHERE workspace_id = ? AND provider = ?"
+    )
+    .run(value, workspaceId, provider);
+}
+
 export function nextBankConnectionKey(
   workspaceId: number,
   baseProvider: string

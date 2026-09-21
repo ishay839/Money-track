@@ -1,6 +1,7 @@
 import "server-only";
 
 import {
+  getAccountFilter,
   getBankCredentials,
   getRequiresManualTwoFactor,
   listBankCredentials,
@@ -254,7 +255,32 @@ async function syncOneProvider(
     };
   }
 
-  const allTransactions = result.accounts.flatMap((account) =>
+  // One login can expose several accounts - a personal and a business current
+  // account under the same credentials, say. When this workspace has been told
+  // which ones it owns, the rest are ignored so two workspaces sharing a login
+  // do not each end up with both halves.
+  const accountFilter = getAccountFilter(workspaceId, providerKey);
+  const wanted = accountFilter
+    ? result.accounts.filter((account) =>
+        accountFilter.some(
+          (allowed) =>
+            allowed === account.accountNumber ||
+            // Banks pad and format account numbers inconsistently between
+            // screens, so a suffix match keeps "612729" working against
+            // "12-677-612729" without matching an unrelated account.
+            (allowed.length >= 4 && account.accountNumber.endsWith(allowed))
+        )
+      )
+    : result.accounts;
+
+  if (accountFilter && wanted.length === 0) {
+    console.warn(
+      `[sync] ${providerKey}: account filter matched none of ` +
+        `${result.accounts.map((a) => a.accountNumber).join(", ")} - importing nothing`
+    );
+  }
+
+  const allTransactions = wanted.flatMap((account) =>
     account.transactions.map((txn) => ({
       accountNumber: account.accountNumber,
       ...txn,
@@ -266,7 +292,7 @@ async function syncOneProvider(
   // Capture whatever balance the bank reported. Card issuers report none, so
   // this is a no-op for them. A foreign-currency account arrives as its own
   // account with its own currency, so it lands as a separate reading.
-  const balanceReadings = result.accounts
+  const balanceReadings = wanted
     .filter((account) => typeof account.balance === "number")
     .map((account) => ({
       key: account.accountNumber,

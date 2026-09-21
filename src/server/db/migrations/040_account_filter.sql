@@ -1,0 +1,13 @@
+-- Which accounts a connection should actually import.
+--
+-- One bank login often exposes several accounts: a personal and a business
+-- current account under the same credentials, or several cards under one card
+-- issuer. Until now the sync took every account the login returned, so someone
+-- tracking the two halves of their finances in separate workspaces got both
+-- halves in whichever workspace they synced.
+--
+-- NULL (the default) means "import everything", which is the behaviour every
+-- existing install already has - so this migration changes nothing for anyone
+-- until they choose otherwise. A value is a JSON array of account numbers to
+-- keep, e.g. ["12-677-612729"].
+ALTER TABLE bank_credentials ADD COLUMN account_filter TEXT;
