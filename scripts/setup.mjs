@@ -93,8 +93,11 @@ async function ensureMacPrereq() {
   console.log("Size: about 1 GB. Time: 5-15 minutes.");
   console.log("Will run: xcode-select --install (opens a system dialog)");
   console.log("");
+  console.log("This is only for the little menubar icon.");
+  console.log("Spent itself is already installed and works without it.");
+  console.log("");
 
-  const yes = await askYesNo("Install now?");
+  const yes = await askYesNo("Install the Xcode tools to add the menubar icon?", false);
   if (!yes) return false;
 
   step("Installing Xcode Command Line Tools");
@@ -147,8 +150,13 @@ async function ensureWindowsPrereq() {
 
   console.log("Will run: winget install Microsoft.DotNet.SDK.8");
   console.log("");
+  console.log("This is only for the little tray icon next to the clock.");
+  console.log("Spent itself is already installed and works without it.");
+  console.log("");
 
-  const yes = await askYesNo("Install now?");
+  // Default no: the app is complete without the tray, and nobody should have
+  // a 200 MB SDK installed by a setup they left running.
+  const yes = await askYesNo("Install the .NET SDK to add the tray icon?", false);
   if (!yes) return false;
 
   step("Installing .NET 8 SDK via winget");
@@ -263,9 +271,10 @@ async function waitForServer(maxMs = 60000) {
 async function macSetup() {
   const ok = await ensureMacPrereq();
   if (!ok) {
-    step("Skipping menubar");
-    console.log(`   Web app is installed and running at ${dashboardUrl()}`);
-    console.log("   Install Xcode Command Line Tools and re-run `npm run setup` to add the menubar.");
+    step("Skipping the menubar icon");
+    console.log("   Spent is installed and running - the menubar icon is just a shortcut.");
+    console.log("   To add it later: install the Xcode tools and run `npm run setup` again.");
+    openDashboard();
     return;
   }
 
@@ -288,8 +297,7 @@ async function macSetup() {
   step("Launching menubar");
   spawnSync("open", [target], { stdio: "ignore" });
 
-  step("Opening dashboard");
-  spawnSync("open", [dashboardUrl()], { stdio: "ignore" });
+  openDashboard();
 }
 
 function addLoginItemMac(appPath) {
@@ -323,9 +331,12 @@ function addLoginItemMac(appPath) {
 async function windowsSetup() {
   const ok = await ensureWindowsPrereq();
   if (!ok) {
-    step("Skipping menubar");
-    console.log(`   Web app is installed and running at ${dashboardUrl()}`);
-    console.log("   Install .NET 8 SDK and re-run `npm run setup` to add the menubar.");
+    step("Skipping the tray icon");
+    console.log("   Spent is installed and running - the tray icon is just a shortcut.");
+    console.log("   To add it later: install the .NET 8 SDK and run `npm run setup` again.");
+    // The tray is optional; the dashboard is the product. Opening it here too
+    // means declining the SDK never leaves the user staring at a terminal.
+    openDashboard();
     return;
   }
 
@@ -351,8 +362,25 @@ async function windowsSetup() {
   step("Launching menubar");
   spawnSync("powershell", ["-Command", `Start-Process "${targetExe}"`], { stdio: "ignore" });
 
-  step("Opening dashboard");
-  spawnSync("cmd", ["/c", "start", "", dashboardUrl()], { stdio: "ignore" });
+  openDashboard();
+}
+
+/** Opens the dashboard in the default browser. Best-effort on every platform. */
+function openDashboard() {
+  const url = dashboardUrl();
+  step("Opening Spent in your browser");
+  try {
+    if (process.platform === "win32") {
+      spawnSync("cmd", ["/c", "start", "", url], { stdio: "ignore" });
+    } else if (process.platform === "darwin") {
+      spawnSync("open", [url], { stdio: "ignore" });
+    } else {
+      spawnSync("xdg-open", [url], { stdio: "ignore" });
+    }
+    done(url);
+  } catch {
+    console.log(`   Could not open a browser. Go to ${url} yourself.`);
+  }
 }
 
 function addStartupShortcutWindows(exePath) {
@@ -390,8 +418,7 @@ function linuxSetup() {
   console.log("   running. Control it with the npm scripts:");
   console.log("     npm run service:status / :start / :stop / :reload / :logs");
 
-  step("Opening dashboard");
-  spawnSync("xdg-open", [dashboardUrl()], { stdio: "ignore" });
+  openDashboard();
 }
 
 async function main() {
@@ -448,7 +475,17 @@ function printCheatSheet() {
   console.log("  npm run service:open           open the dashboard in your browser");
   console.log("  npm run uninstall              remove the service and menubar");
   console.log("");
-  console.log("Tip: bookmark the URL above so the daily flow is one click.");
+  console.log("----------------------------------------------------------------");
+  console.log("  Bookmark it, so you never have to type the address again:");
+  console.log("");
+  console.log("    The page should already be open in your browser.");
+  console.log("    Press Ctrl+D  (Cmd+D on a Mac) and confirm.");
+  console.log("");
+  console.log("    Or click the star at the right of the address bar.");
+  console.log("");
+  console.log("  Spent starts on its own every time you turn the computer on,");
+  console.log("  so from now on it is just that one bookmark.");
+  console.log("----------------------------------------------------------------");
   console.log("");
 }
 

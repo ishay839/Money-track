@@ -164,7 +164,10 @@ Pop-Location
 if ($code -ne 0) { Die 'Setup failed. Copy the error above and send it over.' }
 
 Say ''
-Write-Host '  Done. Open:  http://spent.local:41234' -ForegroundColor Green
-Write-Host '  (or http://127.0.0.1:41234 if that address does not resolve)'
+# 127.0.0.1 always works. spent.local only resolves once the hosts entry is in
+# place, and that edit needs Administrator - so it is the fallback here, not the
+# headline. Announcing the pretty address first sent people to a DNS error.
+Write-Host '  Done. Open:  http://127.0.0.1:41234' -ForegroundColor Green
+Write-Host '  (http://spent.local:41234 also works once the hosts entry exists)'
 Say ('  Code is at: ' + $Dir)
 Say ''

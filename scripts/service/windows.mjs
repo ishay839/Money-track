@@ -120,14 +120,21 @@ export async function run(cmd, { friendlyUrl, loopbackUrl }) {
           // best-effort
         }
       }
+      // Whether spent.local actually resolves decides which address we tell
+      // the user to open. Announcing the pretty one after this failed sent
+      // people straight to a DNS error on a working install.
+      let friendlyWorks = false;
       try {
         addManagedBlock();
         // Windows caches negative DNS lookups, so even a fresh `spent.local`
         // entry can still resolve as NXDOMAIN until the cache is cleared.
         spawnSync("ipconfig", ["/flushdns"], { stdio: "ignore" });
+        friendlyWorks = true;
       } catch (err) {
         console.error(`Hosts file edit failed: ${err.message}`);
-        console.error("Task is still installed. You can bookmark " + loopbackUrl);
+        console.error("Not a problem - Spent works at " + loopbackUrl + ".");
+        console.error("To get the short address too, run this from an");
+        console.error("Administrator PowerShell: npm run service:install");
       }
       setTimeout(() => {
         const state = checkPortBinding();
@@ -138,7 +145,11 @@ export async function run(cmd, { friendlyUrl, loopbackUrl }) {
           );
           process.exit(1);
         }
-        console.log(`Spent is running. Open ${friendlyUrl} or ${loopbackUrl}.`);
+        console.log(
+          friendlyWorks
+            ? `Spent is running. Open ${friendlyUrl} or ${loopbackUrl}.`
+            : `Spent is running. Open ${loopbackUrl}`,
+        );
       }, 2000);
       return;
     }
