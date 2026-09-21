@@ -33,11 +33,40 @@ function Die  { param($m) Write-Host '' ; Write-Host ('Setup stopped: ' + $m) -F
 function Have { param($c) return [bool](Get-Command $c -ErrorAction SilentlyContinue) }
 
 # npm.cmd, not npm: the .ps1 shim is blocked under a Restricted policy.
+# npm writes warnings and progress to stderr on a perfectly normal install, so
+# the preference is suspended here too. Output stays visible: this step takes
+# minutes and a silent window looks like a hang.
 function Npm {
     param([string[]]$Arguments)
-    $cmd = (Get-Command npm.cmd -ErrorAction SilentlyContinue)
-    if ($cmd) { & $cmd.Source @Arguments }
-    else { & npm @Arguments }
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        $cmd = (Get-Command npm.cmd -ErrorAction SilentlyContinue)
+        if ($cmd) { & $cmd.Source @Arguments }
+        else { & npm @Arguments }
+        # npm's own output goes to the caller's stream, so the exit code is
+        # handed back in a script-scoped variable rather than returned - a
+        # return value here would be collected together with that output.
+        $script:NpmExitCode = $LASTEXITCODE
+    }
+    finally { $ErrorActionPreference = $previous }
+}
+
+# Native programs write ordinary progress to stderr - `git clone` announces
+# "Cloning into '...'" there even on success. With $ErrorActionPreference='Stop'
+# PowerShell turns any such line into a terminating NativeCommandError, so a
+# perfectly good clone aborted the installer. Run native commands with the
+# preference suspended and judge them by their exit code, which is the only
+# thing that actually says whether they worked.
+function Invoke-Native {
+    param([string]$File, [string[]]$Arguments)
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        & $File @Arguments 2>&1 | Out-Null
+        return $LASTEXITCODE
+    }
+    finally { $ErrorActionPreference = $previous }
 }
 
 # winget writes new tools into the machine PATH, which this already-running
@@ -54,7 +83,7 @@ function Install-Package {
         Die ($Label + ' is missing and winget is not available. Install it manually, then run this again.')
     }
     Step ('Installing ' + $Label + ' (a few minutes)')
-    winget install --id $Id --accept-package-agreements --accept-source-agreements --silent -e | Out-Null
+    Invoke-Native 'winget' @('install','--id',$Id,'--accept-package-agreements','--accept-source-agreements','--silent','-e') | Out-Null
     Update-PathFromRegistry
 }
 
@@ -98,12 +127,15 @@ $gitDir = Join-Path $Dir '.git'
 if (Test-Path $gitDir) {
     Step ('Already installed at ' + $Dir + ' - checking for updates')
     Push-Location $Dir
-    $dirty = git status --porcelain
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    $dirty = git status --porcelain 2>$null
+    $ErrorActionPreference = $previous
     if ($dirty) {
         Warn 'You have local changes - keeping them, skipping the update'
     }
     else {
-        git pull --ff-only 2>&1 | Out-Null
+        Invoke-Native 'git' @('pull','--ff-only') | Out-Null
     }
 }
 else {
@@ -111,19 +143,22 @@ else {
         Die ($Dir + ' exists but is not a copy of the project. Rename it and run this again.')
     }
     Step ('Downloading the code to ' + $Dir)
-    git clone --depth 1 $Repo $Dir 2>&1 | Out-Null
+    $rc = Invoke-Native 'git' @('clone','--depth','1',$Repo,$Dir)
+    if ($rc -ne 0 -or -not (Test-Path $gitDir)) {
+        Die 'Could not download the code. Check your internet connection and run this again.'
+    }
     Push-Location $Dir
 }
 
 # --- Dependencies + setup --------------------------------------------------
 Step 'Installing dependencies (a few minutes)'
 Npm @('install','--no-audit','--no-fund')
-if ($LASTEXITCODE -ne 0) { Pop-Location ; Die 'Dependency install failed.' }
+if ($script:NpmExitCode -ne 0) { Pop-Location ; Die 'Dependency install failed.' }
 
 Step 'Running setup'
 Say '    You will be asked for Administrator once - only to add the spent.local address.'
 Npm @('run','setup')
-$code = $LASTEXITCODE
+$code = $script:NpmExitCode
 Pop-Location
 
 if ($code -ne 0) { Die 'Setup failed. Copy the error above and send it over.' }
