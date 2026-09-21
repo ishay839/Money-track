@@ -62,6 +62,7 @@ export const getSetting = getGlobalSetting;
 export const setSetting = setGlobalSetting;
 
 const AUTO_SYNC_TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+const AUTO_SYNC_FREQUENCIES = ["daily", "weekly", "monthly"] as const;
 
 export function getAppSettings(workspaceId: number): AppSettings {
   const targetRaw = getWorkspaceSetting(workspaceId, "monthly_target");
@@ -89,6 +90,18 @@ export function getAppSettings(workspaceId: number): AppSettings {
     autoSyncEnabled: getGlobalSetting("auto_sync_enabled") === "true",
     autoSyncTime:
       storedTime && AUTO_SYNC_TIME_RE.test(storedTime) ? storedTime : "06:00",
+    autoSyncFrequency: (() => {
+      const raw = getGlobalSetting("auto_sync_frequency");
+      return (AUTO_SYNC_FREQUENCIES as readonly string[]).includes(raw ?? "")
+        ? (raw as AppSettings["autoSyncFrequency"])
+        : "daily";
+    })(),
+    // Day 1-28 only: 29-31 do not exist in every month, and a sync that
+    // silently skips February is worse than one that runs a day early.
+    autoSyncDayOfMonth: (() => {
+      const raw = Number(getGlobalSetting("auto_sync_day_of_month") ?? "1");
+      return Number.isInteger(raw) && raw >= 1 && raw <= 28 ? raw : 1;
+    })(),
     language: storedLang === "he" ? "he" : "en",
   };
 }
@@ -145,6 +158,23 @@ export function updateAppSettings(
         throw new Error("autoSyncTime must be HH:MM 24-hour");
       }
       setGlobalSetting("auto_sync_time", settings.autoSyncTime);
+    }
+    if (settings.autoSyncFrequency !== undefined) {
+      if (
+        !(AUTO_SYNC_FREQUENCIES as readonly string[]).includes(
+          settings.autoSyncFrequency
+        )
+      ) {
+        throw new Error("autoSyncFrequency must be daily, weekly or monthly");
+      }
+      setGlobalSetting("auto_sync_frequency", settings.autoSyncFrequency);
+    }
+    if (settings.autoSyncDayOfMonth !== undefined) {
+      const day = Number(settings.autoSyncDayOfMonth);
+      if (!Number.isInteger(day) || day < 1 || day > 28) {
+        throw new Error("autoSyncDayOfMonth must be 1-28");
+      }
+      setGlobalSetting("auto_sync_day_of_month", String(day));
     }
     if (settings.language !== undefined) {
       if (settings.language !== "en" && settings.language !== "he") {

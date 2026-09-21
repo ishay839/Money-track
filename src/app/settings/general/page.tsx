@@ -65,6 +65,8 @@ export default function GeneralSettingsPage() {
           <AutoSyncCard
             key={`auto:${settings.autoSyncEnabled}:${settings.autoSyncTime}`}
             initialEnabled={settings.autoSyncEnabled}
+            initialFrequency={settings.autoSyncFrequency}
+            initialDayOfMonth={settings.autoSyncDayOfMonth}
             initialTime={settings.autoSyncTime}
           />
         </>
@@ -244,15 +246,21 @@ function GeneralForm({
 function AutoSyncCard({
   initialEnabled,
   initialTime,
+  initialFrequency,
+  initialDayOfMonth,
 }: {
   initialEnabled: boolean;
   initialTime: string;
+  initialFrequency: "daily" | "weekly" | "monthly";
+  initialDayOfMonth: number;
 }) {
   const t = useTranslations("settings.general");
   const tCommon = useTranslations("common");
   const queryClient = useQueryClient();
   const [enabled, setEnabled] = useState(initialEnabled);
   const [time, setTime] = useState(initialTime);
+  const [frequency, setFrequency] = useState(initialFrequency);
+  const [dayOfMonth, setDayOfMonth] = useState(initialDayOfMonth);
 
   const mutation = useMutation({
     mutationFn: updateSettings,
@@ -268,7 +276,11 @@ function AutoSyncCard({
 
   const timeValid = /^([01]\d|2[0-3]):[0-5]\d$/.test(time);
   const dirty =
-    timeValid && (enabled !== initialEnabled || time !== initialTime);
+    timeValid &&
+    (enabled !== initialEnabled ||
+      time !== initialTime ||
+      frequency !== initialFrequency ||
+      dayOfMonth !== initialDayOfMonth);
 
   return (
     <SettingCard
@@ -291,6 +303,68 @@ function AutoSyncCard({
         />
       </div>
       <div className="mt-5 grid gap-2 sm:max-w-xs">
+        <Label className="text-xs font-medium text-foreground/80">תדירות</Label>
+        <div className="flex gap-1.5">
+          {(
+            [
+              ["daily", "כל יום"],
+              ["weekly", "כל שבוע"],
+              ["monthly", "כל חודש"],
+            ] as const
+          ).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              disabled={!enabled}
+              onClick={() => setFrequency(value)}
+              className={`flex-1 rounded-lg border px-2 py-1.5 text-sm font-medium transition-colors disabled:opacity-40 ${
+                frequency === value
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-border hover:bg-accent"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <p className="text-sm text-muted-foreground">
+          {frequency === "weekly"
+            ? "ירוץ בכל יום ראשון."
+            : frequency === "monthly"
+              ? "ירוץ פעם בחודש, בתאריך שתבחר."
+              : "ירוץ בכל יום."}
+          {" סנכרון ידני תמיד זמין."}
+        </p>
+      </div>
+
+      {frequency === "monthly" ? (
+        <div className="mt-4 grid gap-2 sm:max-w-xs">
+          <Label
+            htmlFor="auto-sync-dom"
+            className="text-xs font-medium text-foreground/80"
+          >
+            יום בחודש
+          </Label>
+          <Input
+            id="auto-sync-dom"
+            type="number"
+            min={1}
+            max={28}
+            value={dayOfMonth}
+            disabled={!enabled}
+            onChange={(e) => {
+              const n = Number(e.target.value);
+              if (Number.isInteger(n)) setDayOfMonth(Math.min(Math.max(n, 1), 28));
+            }}
+            className="tabular-nums"
+          />
+          <p className="text-sm text-muted-foreground">
+            1 עד 28 - כדי שהסנכרון לא ידלג על פברואר.
+          </p>
+        </div>
+      ) : null}
+
+      <div className="mt-4 grid gap-2 sm:max-w-xs">
         <Label htmlFor="auto-sync-time" className="text-xs font-medium text-foreground/80">
           {t("timeOfDay")}
         </Label>
@@ -309,7 +383,12 @@ function AutoSyncCard({
       <div className="mt-5 flex justify-end">
         <Button
           onClick={() =>
-            mutation.mutate({ autoSyncEnabled: enabled, autoSyncTime: time })
+            mutation.mutate({
+              autoSyncEnabled: enabled,
+              autoSyncTime: time,
+              autoSyncFrequency: frequency,
+              autoSyncDayOfMonth: dayOfMonth,
+            })
           }
           disabled={!dirty || mutation.isPending}
         >

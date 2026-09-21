@@ -16,7 +16,12 @@ export async function PUT(request: Request) {
   const body = await request.json();
   try {
     const updated = updateAppSettings(workspaceId, body);
-    if (body.autoSyncEnabled !== undefined || body.autoSyncTime !== undefined) {
+    if (
+      body.autoSyncEnabled !== undefined ||
+      body.autoSyncTime !== undefined ||
+      body.autoSyncFrequency !== undefined ||
+      body.autoSyncDayOfMonth !== undefined
+    ) {
       const { reschedule } = await import("@/server/sync/scheduler");
       reschedule();
     }

@@ -310,6 +310,10 @@ export interface AppSettings {
   paydayDay: number;
   monthlyTarget: number | null;
   autoSyncEnabled: boolean;
+  /** How often the automatic sync runs. */
+  autoSyncFrequency: "daily" | "weekly" | "monthly";
+  /** Day of month for the monthly schedule. 1-28 only - see settings.ts. */
+  autoSyncDayOfMonth: number;
   autoSyncTime: string;
   language: "en" | "he";
 }

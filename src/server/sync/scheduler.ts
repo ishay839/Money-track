@@ -31,6 +31,8 @@ function getState(): SchedulerState {
 
 const TZ = "Asia/Jerusalem";
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+/** setTimeout's signed 32-bit ceiling, minus a margin. */
+const MAX_TIMEOUT_MS = 2 ** 31 - 1;
 
 function intlParts(d: Date) {
   const fmt = new Intl.DateTimeFormat("en-US", {
@@ -60,12 +62,28 @@ function intlParts(d: Date) {
   };
 }
 
-function computeNextDelay(targetHHMM: string): number {
+export type SyncFrequency = "daily" | "weekly" | "monthly";
+
+/**
+ * Milliseconds until the next run, in Jerusalem local time.
+ *
+ * Daily   - the next occurrence of the target time.
+ * Weekly  - the next Sunday at the target time (the start of the Israeli week).
+ * Monthly - the target day-of-month at the target time, next month if that
+ *           moment has already passed this month.
+ *
+ * dayOfMonth is capped at 28 upstream, so "the 30th" can never quietly skip
+ * February.
+ */
+function computeNextDelay(
+  targetHHMM: string,
+  frequency: SyncFrequency = "daily",
+  dayOfMonth = 1
+): number {
   const [tHour, tMin] = targetHHMM.split(":").map(Number);
   const now = new Date();
   const jlm = intlParts(now);
 
-  let candidateMs = Date.UTC(jlm.year, jlm.month - 1, jlm.day, tHour, tMin, 0);
   const nowMs = Date.UTC(
     jlm.year,
     jlm.month - 1,
@@ -75,18 +93,70 @@ function computeNextDelay(targetHHMM: string): number {
     jlm.second
   );
 
+  if (frequency === "monthly") {
+    const day = Math.min(Math.max(dayOfMonth, 1), 28);
+    let candidateMs = Date.UTC(jlm.year, jlm.month - 1, day, tHour, tMin, 0);
+    if (candidateMs <= nowMs) {
+      // Date.UTC normalises month 12 into January of the next year.
+      candidateMs = Date.UTC(jlm.year, jlm.month, day, tHour, tMin, 0);
+    }
+    return candidateMs - nowMs;
+  }
+
+  if (frequency === "weekly") {
+    const todayIndex = new Date(
+      Date.UTC(jlm.year, jlm.month - 1, jlm.day)
+    ).getUTCDay(); // 0 = Sunday
+    let daysAhead = (7 - todayIndex) % 7;
+    let candidateMs = Date.UTC(
+      jlm.year,
+      jlm.month - 1,
+      jlm.day + daysAhead,
+      tHour,
+      tMin,
+      0
+    );
+    // Already past the time on the target day itself: go a full week on.
+    if (candidateMs <= nowMs) {
+      daysAhead += 7;
+      candidateMs = Date.UTC(
+        jlm.year,
+        jlm.month - 1,
+        jlm.day + daysAhead,
+        tHour,
+        tMin,
+        0
+      );
+    }
+    return candidateMs - nowMs;
+  }
+
+  let candidateMs = Date.UTC(jlm.year, jlm.month - 1, jlm.day, tHour, tMin, 0);
   if (candidateMs <= nowMs) {
     candidateMs += 24 * 3600 * 1000;
   }
-
   return candidateMs - nowMs;
 }
 
-function readSettings(): { enabled: boolean; time: string } {
+function readSettings(): {
+  enabled: boolean;
+  time: string;
+  frequency: SyncFrequency;
+  dayOfMonth: number;
+} {
   const enabled = getGlobalSetting("auto_sync_enabled") === "true";
   const time = getGlobalSetting("auto_sync_time");
   const safeTime = time && TIME_RE.test(time) ? time : "06:00";
-  return { enabled, time: safeTime };
+
+  const rawFreq = getGlobalSetting("auto_sync_frequency");
+  const frequency: SyncFrequency =
+    rawFreq === "weekly" || rawFreq === "monthly" ? rawFreq : "daily";
+
+  const rawDay = Number(getGlobalSetting("auto_sync_day_of_month") ?? "1");
+  const dayOfMonth =
+    Number.isInteger(rawDay) && rawDay >= 1 && rawDay <= 28 ? rawDay : 1;
+
+  return { enabled, time: safeTime, frequency, dayOfMonth };
 }
 
 function cancel(): void {
@@ -101,19 +171,32 @@ function cancel(): void {
 
 function armNext(): void {
   const state = getState();
-  const { enabled, time } = readSettings();
+  const { enabled, time, frequency, dayOfMonth } = readSettings();
   if (!enabled) {
     state.nextRunAt = null;
     return;
   }
 
-  const delayMs = computeNextDelay(time);
-  state.timeoutId = setTimeout(fire, delayMs);
+  const delayMs = computeNextDelay(time, frequency, dayOfMonth);
   state.nextRunAt = Date.now() + delayMs;
+
+  // setTimeout stores its delay in a signed 32-bit int (~24.8 days). A larger
+  // value silently wraps and fires immediately, which for a monthly schedule
+  // would mean syncing in a tight loop instead of once a month. Wait in hops
+  // and re-check, so any delay is safe.
+  const scheduleHop = () => {
+    const remaining = (state.nextRunAt ?? Date.now()) - Date.now();
+    if (remaining <= MAX_TIMEOUT_MS) {
+      state.timeoutId = setTimeout(fire, Math.max(remaining, 0));
+    } else {
+      state.timeoutId = setTimeout(scheduleHop, MAX_TIMEOUT_MS);
+    }
+  };
+  scheduleHop();
   console.log(
-    `[scheduler] armed for ${new Date(state.nextRunAt).toISOString()} (in ${Math.round(
-      delayMs / 1000
-    )}s)`
+    `[scheduler] armed (${frequency}) for ${new Date(
+      state.nextRunAt
+    ).toISOString()} (in ${Math.round(delayMs / 1000)}s)`
   );
 }
 
@@ -140,6 +223,8 @@ async function fire(): Promise<void> {
     armNext();
   }
 }
+
+export { computeNextDelay as __computeNextDelayForTests };
 
 export function reschedule(): void {
   cancel();
