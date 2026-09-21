@@ -1,10 +1,16 @@
-﻿# One-line installer for Windows.
+# One-line installer for Windows.
 #
 #   irm https://raw.githubusercontent.com/ishay839/Money-track/main/install.ps1 | iex
 #
 # Installs what is missing (Node.js, Git) via winget, clones the repo, and runs
 # the normal `npm run setup`. Everything here is what the README tells you to do
 # by hand; this just saves the typing.
+#
+# ASCII only, and saved WITHOUT a BOM, on purpose. `irm | iex` hands the script
+# to PowerShell as a string: a UTF-8 BOM survives as a literal U+FEFF before the
+# first '#', which PowerShell then reads as a command named "?#" and the whole
+# thing dies on line 1. And a console running a non-UTF-8 codepage renders any
+# non-ASCII text as mojibake. Keeping this file to plain ASCII sidesteps both.
 
 $ErrorActionPreference = 'Stop'
 
@@ -15,7 +21,7 @@ $MinNode = 22
 function Say  { param($m) Write-Host $m }
 function Step { param($m) Write-Host '' ; Write-Host ('==> ' + $m) -ForegroundColor Cyan }
 function Warn { param($m) Write-Host ('    ' + $m) -ForegroundColor Yellow }
-function Die  { param($m) Write-Host '' ; Write-Host ('ההתקנה נעצרה: ' + $m) -ForegroundColor Red ; exit 1 }
+function Die  { param($m) Write-Host '' ; Write-Host ('Setup stopped: ' + $m) -ForegroundColor Red ; exit 1 }
 
 function Have { param($c) return [bool](Get-Command $c -ErrorAction SilentlyContinue) }
 
@@ -30,16 +36,16 @@ function Update-PathFromRegistry {
 function Install-Package {
     param($Id, $Label)
     if (-not (Have 'winget')) {
-        Die ($Label + ' חסר ו-winget לא זמין במחשב הזה. התקן ידנית והרץ שוב.')
+        Die ($Label + ' is missing and winget is not available. Install it manually, then run this again.')
     }
-    Step ('מתקין ' + $Label)
+    Step ('Installing ' + $Label + ' (a few minutes)')
     winget install --id $Id --accept-package-agreements --accept-source-agreements --silent -e | Out-Null
     Update-PathFromRegistry
 }
 
 Say ''
-Say '  Spent - מעקב כלכלי מקומי'
-Say '  --------------------------'
+Say '  Spent - local personal finance tracker'
+Say '  --------------------------------------'
 
 # --- Node.js ---------------------------------------------------------------
 $nodeOk = $false
@@ -49,37 +55,37 @@ if (Have 'node') {
     if ($major -ge $MinNode) {
         $nodeOk = $true
         Say ''
-        Say ('    Node.js ' + $ver + ' - תקין')
+        Say ('    Node.js ' + $ver + ' - ok')
     }
     else {
-        Warn ('Node.js ' + $ver + ' ישן מדי, צריך ' + $MinNode + ' ומעלה')
+        Warn ('Node.js ' + $ver + ' is too old, need ' + $MinNode + ' or newer')
     }
 }
 if (-not $nodeOk) {
     Install-Package 'OpenJS.NodeJS.LTS' 'Node.js'
     if (-not (Have 'node')) {
-        Die 'Node.js הותקן אך לא נמצא. סגור את החלון, פתח PowerShell חדש והרץ שוב.'
+        Die 'Node.js was installed but is not on PATH yet. Close this window, open a new PowerShell, and run the command again.'
     }
-    Say ('    Node.js ' + (node --version) + ' הותקן')
+    Say ('    Node.js ' + (node --version) + ' installed')
 }
 
 # --- Git -------------------------------------------------------------------
 if (-not (Have 'git')) {
     Install-Package 'Git.Git' 'Git'
     if (-not (Have 'git')) {
-        Die 'Git הותקן אך לא נמצא. סגור את החלון, פתח PowerShell חדש והרץ שוב.'
+        Die 'Git was installed but is not on PATH yet. Close this window, open a new PowerShell, and run the command again.'
     }
 }
-Say ('    Git ' + ((git --version) -replace 'git version ', '') + ' - תקין')
+Say ('    Git ' + ((git --version) -replace 'git version ', '') + ' - ok')
 
 # --- Get the code ----------------------------------------------------------
 $gitDir = Join-Path $Dir '.git'
 if (Test-Path $gitDir) {
-    Step ('כבר מותקן ב-' + $Dir + ' - בודק עדכונים')
+    Step ('Already installed at ' + $Dir + ' - checking for updates')
     Push-Location $Dir
     $dirty = git status --porcelain
     if ($dirty) {
-        Warn 'יש שינויים מקומיים - משאיר אותם, מדלג על העדכון'
+        Warn 'You have local changes - keeping them, skipping the update'
     }
     else {
         git pull --ff-only 2>&1 | Out-Null
@@ -87,27 +93,28 @@ if (Test-Path $gitDir) {
 }
 else {
     if (Test-Path $Dir) {
-        Die ('התיקייה ' + $Dir + ' קיימת אך אינה עותק של הפרויקט. שנה לה שם והרץ שוב.')
+        Die ($Dir + ' exists but is not a copy of the project. Rename it and run this again.')
     }
-    Step ('מוריד את הקוד אל ' + $Dir)
+    Step ('Downloading the code to ' + $Dir)
     git clone --depth 1 $Repo $Dir 2>&1 | Out-Null
     Push-Location $Dir
 }
 
 # --- Dependencies + setup --------------------------------------------------
-Step 'מתקין ספריות - כמה דקות'
+Step 'Installing dependencies (a few minutes)'
 npm install --no-audit --no-fund
-if ($LASTEXITCODE -ne 0) { Pop-Location ; Die 'התקנת הספריות נכשלה.' }
+if ($LASTEXITCODE -ne 0) { Pop-Location ; Die 'Dependency install failed.' }
 
-Step 'מריץ את ההתקנה'
-Say '    תתבקש פעם אחת אישור מנהל - זה בשביל הכתובת spent.local בלבד.'
+Step 'Running setup'
+Say '    You will be asked for Administrator once - only to add the spent.local address.'
 npm run setup
 $code = $LASTEXITCODE
 Pop-Location
 
-if ($code -ne 0) { Die 'ההתקנה נכשלה. העתק את השגיאה שמעל ושלח אותה.' }
+if ($code -ne 0) { Die 'Setup failed. Copy the error above and send it over.' }
 
 Say ''
-Write-Host '  מוכן. פתח בדפדפן:  http://spent.local:41234' -ForegroundColor Green
-Say ('  הקוד נמצא ב: ' + $Dir)
+Write-Host '  Done. Open:  http://spent.local:41234' -ForegroundColor Green
+Write-Host '  (or http://127.0.0.1:41234 if that address does not resolve)'
+Say ('  Code is at: ' + $Dir)
 Say ''
