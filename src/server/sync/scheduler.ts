@@ -1,7 +1,7 @@
 import "server-only";
 
 import { runAllWorkspaces } from "@/server/sync/orchestrator";
-import { getGlobalSetting } from "@/server/db/queries/settings";
+import { getGlobalSetting, setGlobalSetting } from "@/server/db/queries/settings";
 import { syncDueBalances } from "@/server/balances/sync";
 
 interface SchedulerState {
@@ -138,6 +138,68 @@ function computeNextDelay(
   return candidateMs - nowMs;
 }
 
+/**
+ * The most recent moment the schedule should have fired, as epoch ms.
+ *
+ * Mirrors computeNextDelay backwards. Used to answer "did we miss one while
+ * the machine was off?" - the schedule lives in the server process, so a
+ * computer that is asleep at 06:00 simply never fires.
+ */
+function computePreviousSlot(
+  targetHHMM: string,
+  frequency: SyncFrequency,
+  dayOfMonth: number
+): number {
+  const [tHour, tMin] = targetHHMM.split(":").map(Number);
+  const jlm = intlParts(new Date());
+  const nowMs = Date.UTC(
+    jlm.year,
+    jlm.month - 1,
+    jlm.day,
+    jlm.hour,
+    jlm.minute,
+    jlm.second
+  );
+
+  if (frequency === "monthly") {
+    const day = Math.min(Math.max(dayOfMonth, 1), 28);
+    const thisMonth = Date.UTC(jlm.year, jlm.month - 1, day, tHour, tMin, 0);
+    // Date.UTC normalises month -1 into December of the previous year.
+    return thisMonth <= nowMs
+      ? thisMonth
+      : Date.UTC(jlm.year, jlm.month - 2, day, tHour, tMin, 0);
+  }
+
+  if (frequency === "weekly") {
+    const todayIndex = new Date(
+      Date.UTC(jlm.year, jlm.month - 1, jlm.day)
+    ).getUTCDay();
+    const thisWeek = Date.UTC(
+      jlm.year,
+      jlm.month - 1,
+      jlm.day - todayIndex,
+      tHour,
+      tMin,
+      0
+    );
+    return thisWeek <= nowMs ? thisWeek : thisWeek - 7 * 86400000;
+  }
+
+  const today = Date.UTC(jlm.year, jlm.month - 1, jlm.day, tHour, tMin, 0);
+  return today <= nowMs ? today : today - 86400000;
+}
+
+function getLastScheduledRunMs(): number | null {
+  const raw = getGlobalSetting("auto_sync_last_run_slot");
+  if (!raw) return null;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : null;
+}
+
+function setLastScheduledRunMs(slotMs: number): void {
+  setGlobalSetting("auto_sync_last_run_slot", String(slotMs));
+}
+
 function readSettings(): {
   enabled: boolean;
   time: string;
@@ -200,7 +262,7 @@ function armNext(): void {
   );
 }
 
-async function fire(): Promise<void> {
+async function fire(reason: "due" | "catch-up" = "due"): Promise<void> {
   const state = getState();
   state.timeoutId = null;
 
@@ -210,11 +272,16 @@ async function fire(): Promise<void> {
     return;
   }
 
+  const { time, frequency, dayOfMonth } = readSettings();
+
   state.running = true;
-  console.log("[scheduler] running");
+  console.log(`[scheduler] running (${reason})`);
   try {
     await runAllWorkspaces(undefined, undefined, "scheduled");
     await syncDueBalances();
+    // Recorded only on success, so a failed run is retried as a missed slot
+    // the next time the server starts rather than being counted as done.
+    setLastScheduledRunMs(computePreviousSlot(time, frequency, dayOfMonth));
     console.log("[scheduler] done");
   } catch (err) {
     console.error("[scheduler] run failed:", err);
@@ -231,6 +298,44 @@ export function reschedule(): void {
   armNext();
 }
 
+/**
+ * Runs a slot that was missed while the machine was off.
+ *
+ * The schedule lives in the server process, so a computer asleep at 06:00 -
+ * or simply switched off for a fortnight - never fires. On startup we compare
+ * the slot that should most recently have run against the last one actually
+ * recorded, and if the machine missed it, sync now.
+ *
+ * Deliberately at most one catch-up: someone returning from a month away wants
+ * current data, not thirty sequential scrapes of the same accounts.
+ */
+function runCatchUpIfMissed(): void {
+  const { enabled, time, frequency, dayOfMonth } = readSettings();
+  if (!enabled) return;
+
+  const previousSlot = computePreviousSlot(time, frequency, dayOfMonth);
+  const lastRun = getLastScheduledRunMs();
+
+  if (lastRun === null) {
+    // First time with auto-sync on: treat the current slot as satisfied rather
+    // than scraping the banks the moment the setting is switched on.
+    setLastScheduledRunMs(previousSlot);
+    return;
+  }
+
+  if (lastRun >= previousSlot) return;
+
+  const missedDays = Math.round((previousSlot - lastRun) / 86400000);
+  console.log(
+    `[scheduler] missed a scheduled run (last ${new Date(
+      lastRun
+    ).toISOString()}, due ${new Date(previousSlot).toISOString()}, ` +
+      `${missedDays}d) - catching up now`
+  );
+  // Fire and forget: startup must not block on a bank scrape.
+  void fire("catch-up");
+}
+
 export function initScheduler(): void {
   const state = getState();
   if (state.initialized) {
@@ -241,6 +346,7 @@ export function initScheduler(): void {
   state.initialized = true;
   armNext();
   registerExitHandlers();
+  runCatchUpIfMissed();
 }
 
 export function getNextRunAt(): string | null {
