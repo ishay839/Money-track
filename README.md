@@ -265,6 +265,27 @@ Rare cases:
 | `npm run service:open` | Open the app in your browser |
 | `npm run service:uninstall` | Remove auto-start and hosts entry. `data/` is untouched. |
 
+## Reaching it from your phone
+
+On the machine itself, `http://127.0.0.1:41234` always works.
+
+From a phone or another computer on the same network, use the machine's own
+name rather than its IP address:
+
+```
+http://<your-computer-name>.local:41234
+```
+
+`npm run setup` prints the exact URL at the end. Do not bookmark the
+`192.168.x.x` number: routers lease those for as little as an hour, so the
+address changes and the bookmark goes dead, while the `.local` name follows
+the machine automatically.
+
+Note that the background service binds to loopback only, on purpose - it holds
+bank credentials. Reaching it across the network therefore needs the dev server
+(`npm run dev`, port 3000) rather than the installed service. Exposing the
+service itself to the network is deliberately not supported.
+
 ## Categorization without an AI key
 
 Categorization runs in three stages, and only the last one needs an AI key:
