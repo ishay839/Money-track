@@ -6,6 +6,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { getActivity, getHome } from "@/lib/api";
+import { clearSelectedMonth } from "@/lib/selected-month";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/layout/app-shell";
 import { SyncButton } from "@/components/dashboard/sync-button";
@@ -40,6 +41,12 @@ export function HomePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [autoStartSync] = useState(() => searchParams.get("sync") === "1");
+
+  // Opening the home page means "where do things stand now", so it drops any
+  // month the user had stepped back to elsewhere. Every other page keeps it.
+  useEffect(() => {
+    clearSelectedMonth();
+  }, []);
   const today = useMemo(() => new Date(), []);
   const [periodMode, setPeriodMode] = useState<"month" | "year">("month");
   const [anchor, setAnchor] = useState(

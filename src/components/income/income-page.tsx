@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { getIncomeSummary, type IncomeCategoryRow } from "@/lib/api";
 import { addMonths, formatMonthLabel, getMonthRange, formatCurrency, formatDate } from "@/lib/formatters";
 import { translateCategoryName } from "@/lib/i18n-data";
+import { useSelectedMonth, isCurrentMonth } from "@/lib/selected-month";
 import { IncomeCategoryCard } from "./income-category-card";
 import { IncomeDetailSheet } from "./income-detail-sheet";
 import type { Locale } from "@/i18n/routing";
@@ -24,7 +25,10 @@ const MONTHS = ["ינו", "פבר", "מרץ", "אפר", "מאי", "יוני", "�
 export function IncomePage() {
   const locale = useLocale() as Locale;
   const tCat = useTranslations("categoriesSeeded");
-  const [selectedDate, setSelectedDate] = useState(new Date());
+  // null from the shared store means "no explicit choice" - this page treats
+  // that as the current month.
+  const { selectedDate: storedDate, setSelectedDate } = useSelectedMonth();
+  const selectedDate = storedDate ?? new Date();
   const { from, to } = getMonthRange(selectedDate);
   const monthLabel = formatMonthLabel(selectedDate, locale);
 
@@ -41,8 +45,10 @@ export function IncomePage() {
         actions={
           <PeriodSelector
             label={monthLabel}
-            onPrev={() => setSelectedDate((d) => addMonths(d, -1))}
-            onNext={() => setSelectedDate((d) => addMonths(d, 1))}
+            isCurrent={isCurrentMonth(selectedDate)}
+              onCurrent={() => setSelectedDate(null)}
+              onPrev={() => setSelectedDate(addMonths(selectedDate, -1))}
+            onNext={() => setSelectedDate(addMonths(selectedDate, 1))}
           />
         }
       />

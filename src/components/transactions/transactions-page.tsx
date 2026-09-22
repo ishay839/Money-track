@@ -26,12 +26,13 @@ import {
   getMonthRange,
 } from "@/lib/formatters";
 import type { Locale } from "@/i18n/routing";
+import { useSelectedMonth, isCurrentMonth } from "@/lib/selected-month";
 
 export function TransactionsPage() {
   const t = useTranslations("transactions");
   const locale = useLocale() as Locale;
   const searchParams = useSearchParams();
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const { selectedDate, setSelectedDate } = useSelectedMonth();
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<number | undefined>();
   const [page, setPage] = useState(0);
@@ -151,6 +152,8 @@ export function TransactionsPage() {
             </Button>
             <PeriodSelector
               label={monthLabel}
+              isCurrent={isCurrentMonth(effectiveDate)}
+              onCurrent={() => setSelectedDate(null)}
               onPrev={() => setSelectedDate(addMonths(effectiveDate, -1))}
               onNext={() => setSelectedDate(addMonths(effectiveDate, 1))}
             />

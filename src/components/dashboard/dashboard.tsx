@@ -15,6 +15,7 @@ import { AINotConnectedBanner } from "@/components/ai-not-connected-banner";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { CategoryViewMode } from "@/lib/types";
 import type { Locale } from "@/i18n/routing";
+import { useSelectedMonth, isCurrentMonth } from "@/lib/selected-month";
 
 const VIEW_MODE_KEY = "spent.dashboard.viewMode";
 
@@ -31,7 +32,8 @@ function readViewMode(): CategoryViewMode {
 export function Dashboard() {
   const t = useTranslations("dashboard");
   const locale = useLocale() as Locale;
-  const [selectedDate, setSelectedDate] = useState(new Date());
+  const { selectedDate: storedDate, setSelectedDate } = useSelectedMonth();
+  const selectedDate = storedDate ?? new Date();
   const [viewMode, setViewMode] = useState<CategoryViewMode>("collapsed");
   const queryClient = useQueryClient();
 
@@ -73,8 +75,10 @@ export function Dashboard() {
           <>
             <PeriodSelector
               label={monthLabel}
-              onPrev={() => setSelectedDate((d) => addMonths(d, -1))}
-              onNext={() => setSelectedDate((d) => addMonths(d, 1))}
+              isCurrent={isCurrentMonth(selectedDate)}
+              onCurrent={() => setSelectedDate(null)}
+              onPrev={() => setSelectedDate(addMonths(selectedDate, -1))}
+              onNext={() => setSelectedDate(addMonths(selectedDate, 1))}
             />
             <CategorizeButton onApplied={handleSyncComplete} />
             <SyncButton onComplete={handleSyncComplete} />
