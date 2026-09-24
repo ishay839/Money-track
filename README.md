@@ -267,24 +267,26 @@ Rare cases:
 
 ## Reaching it from your phone
 
-On the machine itself, `http://127.0.0.1:41234` always works.
+**You can't, and that is deliberate.**
 
-From a phone or another computer on the same network, use the machine's own
-name rather than its IP address:
+On the machine itself, `http://127.0.0.1:41234` always works. That is the only
+address the installed service answers on.
 
-```
-http://<your-computer-name>.local:41234
-```
+The service binds to loopback only, on purpose: it holds your bank credentials,
+so it is never exposed to the network - not even to other devices in your own
+home. Exposing it is deliberately not supported, and the installer raises an
+alarm if it ever finds the server bound to a wildcard address.
 
-`npm run setup` prints the exact URL at the end. Do not bookmark the
-`192.168.x.x` number: routers lease those for as little as an hour, so the
-address changes and the bookmark goes dead, while the `.local` name follows
-the machine automatically.
+So if you try a `192.168.x.x` address, or `http://<your-computer-name>.local`,
+you get `ERR_CONNECTION_TIMED_OUT`. Nothing is broken - there is nothing
+listening for you out there. Two extra traps, if you go looking anyway:
 
-Note that the background service binds to loopback only, on purpose - it holds
-bank credentials. Reaching it across the network therefore needs the dev server
-(`npm run dev`, port 3000) rather than the installed service. Exposing the
-service itself to the network is deliberately not supported.
+- **Port 3000 is not the app.** It is the development server (`npm run dev`),
+  which is only up while you are editing code. The installed service is on
+  **41234**. A bookmark to port 3000 will work for an afternoon and then time
+  out forever.
+- **A `192.168.x.x` address is temporary.** Routers lease them for as little as
+  an hour, so the number changes on its own even when everything is working.
 
 ## Categorization without an AI key
 
